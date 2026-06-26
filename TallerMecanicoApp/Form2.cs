@@ -39,7 +39,7 @@ public partial class Form2 : Form
         _vehiculosBindingSource.DataSource = _vehiculos;
         cbPlaca.DataSource = _vehiculosBindingSource;
         cbPlaca.DisplayMember = nameof(Vehiculo.Placa);
-        cbPlaca.ValueMember = nameof(Vehiculo.Id);
+        cbPlaca.ValueMember = "idVehiculo";
 
         _mecanicosBindingSource.DataSource = _mecanicos;
         cbMecanico.DataSource = _mecanicosBindingSource;
@@ -49,6 +49,15 @@ public partial class Form2 : Form
         // Enlazamos eventos dinámicos de control
         dgvTrabajos.SelectionChanged += dgvTrabajos_SelectionChanged;
         txtBuscarTrabajo.TextChanged += txtBuscarTrabajo_TextChanged;
+
+        // NUEVO: Enlace para detectar el clic en la celda de "Ver fotos"
+        dgvTrabajos.CellContentClick += dgvTrabajos_CellContentClick;
+
+        if (dgvTrabajos.Columns["colIdTrabajo"] != null) {dgvTrabajos.Columns["colIdTrabajo"].DefaultCellStyle.Format = "D2"; }
+        if (dgvTrabajos.Columns["colIdVehiculo"] != null)
+        {
+            dgvTrabajos.Columns["colIdVehiculo"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+        }
     }
 
     private void Form2_Load(object sender, EventArgs e)
@@ -80,17 +89,16 @@ public partial class Form2 : Form
     {
         try
         {
-            if (cbPlaca.Items.Count == 0)
+            if (_vehiculos.Count == 0)
             {
-                var placaActual = ObtenerPlacaSeleccionada();
-                _vehiculos.Clear();
-                foreach (var vehiculo in _repositorio.ObtenerVehiculos())
+                var vehiculosBD = _repositorio.ObtenerVehiculos();
+                foreach (var vehiculo in vehiculosBD)
                 {
                     _vehiculos.Add(vehiculo);
                 }
                 CargarMecanicos();
                 if (cbMecanico.Items.Count > 0) cbMecanico.SelectedIndex = 0;
-                SeleccionarPlaca(placaActual ?? _placaPreseleccionada);
+                SeleccionarPlaca(_placaPreseleccionada);
             }
 
             _trabajos.Clear();
@@ -153,8 +161,35 @@ public partial class Form2 : Form
             chkLiquidoFrenos.Checked = trabajo.CambioLiquidoFrenos;
             chkBujias.Checked = trabajo.CambioBujias;
 
-            var vehiculo = _vehiculos.FirstOrDefault(v => v.Placa.Equals(trabajo.Placa, StringComparison.OrdinalIgnoreCase));
-            if (vehiculo != null) cbPlaca.SelectedValue = vehiculo.Id;
+            cbPlaca.SelectedValue = trabajo.idVehiculo;
+
+            // ==========================================
+            // NUEVO: LOGICA PARA CARGAR LA MINIATURA 📷
+            // ==========================================
+            try
+            {
+                // Buscamos si el vehículo (por su placa) tiene imágenes guardadas
+                var imagenes = _repositorio.ObtenerImagenesPorPlaca(trabajo.Placa);
+
+                if (imagenes != null && imagenes.Count > 0)
+                {
+                    // Si existen fotos, tomamos la primera (índice 0) y la renderizamos
+                    using (var ms = new System.IO.MemoryStream(imagenes[0]))
+                    {
+                        pbVehiculoTrabajo.Image = Image.FromStream(ms);
+                    }
+                }
+                else
+                {
+                    // Si no tiene fotos, limpiamos el PictureBox para que no se quede la foto anterior
+                    pbVehiculoTrabajo.Image = null;
+                }
+            }
+            catch (Exception)
+            {
+                // En caso de que ocurra algún inconveniente menor, aseguramos que no rompa el programa
+                pbVehiculoTrabajo.Image = null;
+            }
         }
     }
 
@@ -179,14 +214,19 @@ public partial class Form2 : Form
 
     private void btnRegistrarTrabajo_Click(object sender, EventArgs e)
     {
-        if (cbPlaca.SelectedItem is not Vehiculo vSel || cbServicio.SelectedItem is not Servicio sSel || string.IsNullOrWhiteSpace(txtDescripcion.Text) || cbMecanico.SelectedItem is not Mecanico mSel)
+        if (cbPlaca.SelectedItem is not Vehiculo vSel || 
+            cbServicio.SelectedItem is not Servicio sSel || 
+            string.IsNullOrWhiteSpace(txtDescripcion.Text) || 
+            cbMecanico.SelectedItem is not Mecanico mSel)
         {
             MessageBox.Show("Completa la información necesaria.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
-        var trabajo = ConstruitObjetoTrabajo(vSel.Placa, mSel.Nombre, sSel);
-        try
+        int idVehiculoRelacional = vSel.idVehiculo;
+        string placaTexto = vSel.Placa;
+
+        var trabajo = ConstruitObjetoTrabajo(idVehiculoRelacional, placaTexto, mSel.Nombre, sSel); try
         {
             _repositorio.RegistrarTrabajo(trabajo);
             CargarDatos();
@@ -206,16 +246,22 @@ public partial class Form2 : Form
     {
         if (dgvTrabajos.CurrentRow?.DataBoundItem is Trabajo trabajoSeleccionado)
         {
-            if (cbPlaca.SelectedItem is not Vehiculo vSel || cbServicio.SelectedItem is not Servicio sSel || cbMecanico.SelectedItem is not Mecanico mSel) return;
+            if (cbPlaca.SelectedItem is not Vehiculo vSel || 
+                cbServicio.SelectedItem is not Servicio sSel || 
+                cbMecanico.SelectedItem is not Mecanico mSel)
+            {
+                MessageBox.Show("Por favor, asegúrate de seleccionar un vehículo, servicio y mecánico válidos.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
-            var respuesta = MessageBox.Show($"¿Deseas guardar los cambios de la orden N° {trabajoSeleccionado.Id}?", "Confirmar Modificación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var respuesta = MessageBox.Show($"¿Deseas guardar los cambios de la orden N° {trabajoSeleccionado.idTrabajo:D2}?", "Confirmar Modificación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (respuesta == DialogResult.Yes)
             {
                 try
                 {
                     // Construimos el objeto actualizado manteniendo el mismo ID original de la fila
-                    var trabajoActualizado = ConstruitObjetoTrabajo(vSel.Placa, mSel.Nombre, sSel);
-                    trabajoActualizado.Id = trabajoSeleccionado.Id;
+                    var trabajoActualizado = ConstruitObjetoTrabajo(vSel.idVehiculo, vSel.Placa, mSel.Nombre, sSel); 
+                    trabajoActualizado.idTrabajo = trabajoSeleccionado.idTrabajo;
 
                     // Guardamos el cambio directamente en SQL Server
                     _repositorio.ActualizarTrabajo(trabajoActualizado);
@@ -243,13 +289,13 @@ public partial class Form2 : Form
     {
         if (dgvTrabajos.CurrentRow?.DataBoundItem is Trabajo trabajo)
         {
-            var respuesta = MessageBox.Show($"¿Estás seguro de remover permanentemente la orden N° {trabajo.Id} asociada a la placa {trabajo.Placa}?", "Peligro", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            var respuesta = MessageBox.Show($"¿Estás seguro de remover permanentemente la orden N° {trabajo.idTrabajo:D2} asociada a la placa {trabajo.Placa}?", "Peligro", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (respuesta == DialogResult.Yes)
             {
                 try
                 {
                     // Eliminamos directamente desde la base de datos usando el ID único de la orden
-                    _repositorio.EliminarTrabajo(trabajo.Id);
+                    _repositorio.EliminarTrabajo(trabajo.idTrabajo);
 
                     CargarDatos();
                     LimpiarFormulario();
@@ -267,7 +313,73 @@ public partial class Form2 : Form
         }
     }
 
-    private Trabajo ConstruitObjetoTrabajo(string placa, string mecanico, Servicio serv)
+
+    // ============================================================
+    // EVENTO: ADJUNTAR FOTO DESDE REGISTRO DE TRABAJOS
+    // ============================================================
+    private void btnAdjuntarFotos_Click(object sender, EventArgs e)
+    {
+        // Validamos que haya un vehículo seleccionado en el ComboBox
+        if (cbPlaca.SelectedItem is not Vehiculo vehiculoSeleccionado)
+        {
+            MessageBox.Show("Por favor, selecciona un vehículo válido primero.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        using OpenFileDialog dialog = new OpenFileDialog();
+        dialog.Filter = "Imágenes (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png";
+        dialog.Title = $"Adjuntar foto para el vehículo con Placa: {vehiculoSeleccionado.Placa}";
+
+        if (dialog.ShowDialog() == DialogResult.OK)
+        {
+            try
+            {
+                // Convertimos la imagen elegida a bytes
+                byte[] imagenBytes = System.IO.File.ReadAllBytes(dialog.FileName);
+
+                // Guardamos en la base de datos usando el repositorio existente
+                _repositorio.GuardarImagenVehiculo(vehiculoSeleccionado.Placa, imagenBytes);
+
+                MessageBox.Show("¡Foto de la orden guardada con éxito en SQL Server!", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al guardar la imagen: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+
+
+    // ============================================================
+    // EVENTO: VER FOTOS DESDE EL DATAGRIDVIEW
+    // ============================================================
+    private void dgvTrabajos_CellContentClick(object sender, DataGridViewCellEventArgs e)
+    {
+        // Validamos que el clic no sea en las cabeceras y sea en la columna correcta
+        if (e.RowIndex >= 0 && dgvTrabajos.Columns[e.ColumnIndex].Name == "colGaleriaFotos")
+        {
+            if (dgvTrabajos.Rows[e.RowIndex].DataBoundItem is Trabajo trabajoSeleccionado)
+            {
+                // Buscamos todas las fotos de esa placa en la BD
+                var listaImagenes = _repositorio.ObtenerImagenesPorPlaca(trabajoSeleccionado.Placa);
+
+                if (listaImagenes.Count == 0)
+                {
+                    MessageBox.Show("Este vehículo no cuenta con fotos registradas.", "Galería Vacía", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                // Aquí abres tu formulario visor pasándole la lista de bytes, tal cual lo haces en el Form1.
+                // Ejemplo (descoméntalo y ajusta el nombre si tienes un formulario visor):
+                // var visor = new FrmVisorImagenes(listaImagenes);
+                // visor.ShowDialog();
+
+                MessageBox.Show($"Se encontraron {listaImagenes.Count} fotos en la base de datos para la placa {trabajoSeleccionado.Placa}.", "Visor de Fotos", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+    }
+
+    private Trabajo ConstruitObjetoTrabajo(int idVehiculo, string placa, string mecanico, Servicio serv)
     {
         var total = serv.PrecioBase;
         var tiempo = serv.TiempoBase;
@@ -280,6 +392,7 @@ public partial class Form2 : Form
 
         return new Trabajo
         {
+            idVehiculo = idVehiculo,
             Placa = placa,
             Mecanico = mecanico,
             Descripcion = txtDescripcion.Text.Trim(),
@@ -389,7 +502,7 @@ public partial class Form2 : Form
             return;
         }
         var veh = _vehiculos.FirstOrDefault(v => v.Placa.Equals(placa, StringComparison.OrdinalIgnoreCase));
-        if (veh != null) cbPlaca.SelectedValue = veh.Id;
+        if (veh != null) cbPlaca.SelectedValue = veh.idVehiculo;
     }
 
     private string? ObtenerPlacaSeleccionada() => cbPlaca.SelectedItem is Vehiculo v ? v.Placa : null;

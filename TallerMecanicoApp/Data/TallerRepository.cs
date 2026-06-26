@@ -69,7 +69,7 @@ public sealed class TallerRepository
         const string sql =
             """
         SELECT 
-            v.Id, 
+            v.idVehiculo, 
             v.Placa, 
             v.Cliente, 
             v.Telefono, 
@@ -81,10 +81,10 @@ public sealed class TallerRepository
         OUTER APPLY (
             SELECT TOP 1 t.Estado
             FROM dbo.Trabajos t
-            WHERE t.Placa = v.Placa
-            ORDER BY t.FechaRegistro DESC, t.Id DESC
+            WHERE t.idVehiculo = v.idVehiculo
+            ORDER BY t.FechaRegistro DESC, t.idTrabajo DESC
         ) t
-        ORDER BY v.FechaRegistro DESC, v.Id DESC;
+        ORDER BY v.FechaRegistro DESC, v.idVehiculo DESC;
         """;
 
         var vehiculos = new List<Vehiculo>();
@@ -96,14 +96,14 @@ public sealed class TallerRepository
         while (lector.Read())
         {
             vehiculos.Add(new Vehiculo(
-                lector.GetInt32(0),      // Id
-                lector.GetString(1),   // Placa
-                lector.GetString(2),   // Cliente
-                lector.GetString(4),   // Modelo
-                lector.GetString(5),   // Dni
-                lector.GetString(3),   // Telefono
-                lector.GetDateTime(6),  // FechaRegistro
-                lector.GetString(7)    // Estado (NUEVO)
+                lector.GetInt32(0),      // 1. idVehiculo (¡Esto solucionará el ID vacío!)
+                lector.GetString(1),     // 2. Placa
+                lector.GetString(2),     // 3. Cliente
+                lector.GetString(4),     // 4. Modelo (Índice 4 en el SELECT)
+                lector.GetString(5),     // 5. Dni (Índice 5 en el SELECT)
+                lector.GetString(3),     // 6. Telefono (Índice 3 en el SELECT)
+                lector.GetDateTime(6),   // 7. FechaRegistro (Índice 6 en el SELECT)
+                lector.GetString(7)      // 8. Estado (Índice 7 en el SELECT)
             ));
         }
 
@@ -154,12 +154,12 @@ public sealed class TallerRepository
                 Modelo = @modelo,
                 Dni = @dni,
                 FechaRegistro = SYSDATETIME() -- Actualiza a la hora local actual de Lima
-            WHERE Placa = @placa;
+            WHERE idVehiculo = @idVehiculo;
             """;
 
         using var conexion = AbrirConexion();
         using var comando = new SqlCommand(sql, conexion);
-        comando.Parameters.AddWithValue("@placa", vehiculo.Placa);
+        comando.Parameters.AddWithValue("@idVehiculo", vehiculo.idVehiculo);
         comando.Parameters.AddWithValue("@cliente", vehiculo.Cliente);
         comando.Parameters.AddWithValue("@telefono", vehiculo.Telefono);
         comando.Parameters.AddWithValue("@modelo", vehiculo.Modelo);
@@ -171,17 +171,17 @@ public sealed class TallerRepository
     // ----------------------------------------------------------
     // METODO INYECTADO: ELIMINAR POR PLACA
     // ----------------------------------------------------------
-    public void EliminarVehiculo(string placa)
+    public void EliminarVehiculo(int idVehiculo)
     {
         const string sql =
             """
             DELETE FROM dbo.Vehiculos
-            WHERE Placa = @placa;
+            WHERE idVehiculo = @idVehiculo;
             """;
 
         using var conexion = AbrirConexion();
         using var comando = new SqlCommand(sql, conexion);
-        comando.Parameters.AddWithValue("@placa", placa);
+        comando.Parameters.AddWithValue("@idVehiculo", idVehiculo);
 
         comando.ExecuteNonQuery();
     }
@@ -194,10 +194,24 @@ public sealed class TallerRepository
     {
         const string sql =
             """
-            SELECT Id, Placa, Mecanico, Descripcion, Estado, ServicioNombre, PrecioBase, TiempoBaseMinutos,
-                   CambioRefrigerante, CambioLiquidoFrenos, CambioBujias, TotalPagar, TiempoEstimadoMinutos
-            FROM dbo.Trabajos
-            ORDER BY FechaRegistro DESC, Id DESC;
+            SELECT 
+                t.idTrabajo, 
+                t.idVehiculo, 
+                v.Placa, 
+                t.Mecanico, 
+                t.Descripcion, 
+                t.Estado, 
+                t.ServicioNombre, 
+                t.PrecioBase, 
+                t.TiempoBaseMinutos,
+                t.CambioRefrigerante, 
+                t.CambioLiquidoFrenos, 
+                t.CambioBujias, 
+                t.TotalPagar, 
+                t.TiempoEstimadoMinutos
+            FROM dbo.Trabajos t
+            INNER JOIN dbo.Vehiculos v ON t.idVehiculo = v.idVehiculo
+            ORDER BY t.FechaRegistro DESC, t.idTrabajo DESC;
             """;
 
         var trabajos = new List<Trabajo>();
@@ -210,19 +224,20 @@ public sealed class TallerRepository
         {
             trabajos.Add(new Trabajo
             {
-                Id = lector.GetInt32(0),
-                Placa = lector.GetString(1),
-                Mecanico = lector.GetString(2),
-                Descripcion = lector.GetString(3),
-                Estado = lector.GetString(4),
-                ServicioNombre = lector.GetString(5),
-                PrecioBase = lector.GetDecimal(6),
-                TiempoBase = TimeSpan.FromMinutes(lector.GetInt32(7)),
-                CambioRefrigerante = lector.GetBoolean(8),
-                CambioLiquidoFrenos = lector.GetBoolean(9),
-                CambioBujias = lector.GetBoolean(10),
-                TotalPagar = lector.GetDecimal(11),
-                TiempoEstimado = TimeSpan.FromMinutes(lector.GetInt32(12))
+                idTrabajo = lector.GetInt32(0),          // idTrabajo
+                idVehiculo = lector.GetInt32(1),  // FK idVehiculo
+                Placa = lector.GetString(2),       // Placa recuperada mediante JOIN relacional
+                Mecanico = lector.GetString(3),
+                Descripcion = lector.GetString(4),
+                Estado = lector.GetString(5),
+                ServicioNombre = lector.GetString(6),
+                PrecioBase = lector.GetDecimal(7),
+                TiempoBase = TimeSpan.FromMinutes(lector.GetInt32(8)),
+                CambioRefrigerante = lector.GetBoolean(9),
+                CambioLiquidoFrenos = lector.GetBoolean(10),
+                CambioBujias = lector.GetBoolean(11),
+                TotalPagar = lector.GetDecimal(12),
+                TiempoEstimado = TimeSpan.FromMinutes(lector.GetInt32(13))
             });
         }
 
@@ -235,18 +250,19 @@ public sealed class TallerRepository
             """
             INSERT INTO dbo.Trabajos
             (
-                Placa, Mecanico, Descripcion, Estado, ServicioNombre, PrecioBase, TiempoBaseMinutos,
+                idVehiculo, Placa, Mecanico, Descripcion, Estado, ServicioNombre, PrecioBase, TiempoBaseMinutos,
                 CambioRefrigerante, CambioLiquidoFrenos, CambioBujias, TotalPagar, TiempoEstimadoMinutos
             )
             VALUES
             (
-                @placa, @mecanico, @descripcion, @estado, @servicioNombre, @precioBase, @tiempoBaseMinutos,
+                @idVehiculo, @placa, @mecanico, @descripcion, @estado, @servicioNombre, @precioBase, @tiempoBaseMinutos,
                 @cambioRefrigerante, @cambioLiquidoFrenos, @cambioBujias, @totalPagar, @tiempoEstimadoMinutos
             );
             """;
 
         using var conexion = AbrirConexion();
         using var comando = new SqlCommand(sql, conexion);
+        comando.Parameters.AddWithValue("@idVehiculo", trabajo.idVehiculo);
         comando.Parameters.AddWithValue("@placa", trabajo.Placa);
         comando.Parameters.AddWithValue("@mecanico", trabajo.Mecanico);
         comando.Parameters.AddWithValue("@descripcion", trabajo.Descripcion);
@@ -267,7 +283,8 @@ public sealed class TallerRepository
         const string sql =
             """
             UPDATE dbo.Trabajos
-            SET Placa = @placa,
+            SET idVehiculo = @idVehiculo,
+                Placa = @placa,
                 Mecanico = @mecanico,
                 Descripcion = @descripcion,
                 Estado = @estado,
@@ -279,12 +296,13 @@ public sealed class TallerRepository
                 CambioBujias = @cambioBujias,
                 TotalPagar = @totalPagar,
                 TiempoEstimadoMinutos = @tiempoEstimadoMinutos
-            WHERE Id = @id;
+            WHERE idTrabajo = @idTrabajo;
             """;
 
         using var conexion = AbrirConexion();
         using var comando = new SqlCommand(sql, conexion);
-        comando.Parameters.AddWithValue("@id", trabajo.Id);
+        comando.Parameters.AddWithValue("@idTrabajo", trabajo.idTrabajo);
+        comando.Parameters.AddWithValue("@idVehiculo", trabajo.idVehiculo);
         comando.Parameters.AddWithValue("@placa", trabajo.Placa);
         comando.Parameters.AddWithValue("@mecanico", trabajo.Mecanico);
         comando.Parameters.AddWithValue("@descripcion", trabajo.Descripcion);
@@ -301,17 +319,17 @@ public sealed class TallerRepository
         comando.ExecuteNonQuery();
     }
 
-    public void EliminarTrabajo(int id)
+    public void EliminarTrabajo(int idTrabajo)
     {
         const string sql =
             """
             DELETE FROM dbo.Trabajos
-            WHERE Id = @id;
+            WHERE idTrabajo = @idTrabajo;
             """;
 
         using var conexion = AbrirConexion();
         using var comando = new SqlCommand(sql, conexion);
-        comando.Parameters.AddWithValue("@id", id);
+        comando.Parameters.AddWithValue("@idTrabajo", idTrabajo);
 
         comando.ExecuteNonQuery();
     }
@@ -344,7 +362,7 @@ public sealed class TallerRepository
             SELECT datosImagen
             FROM dbo.VehiculosImagenes
             WHERE Placa = @placa
-            ORDER BY Id ASC;
+            ORDER BY FechaRegistro ASC;
             """;
 
         var imagenes = new List<byte[]>();
@@ -356,7 +374,7 @@ public sealed class TallerRepository
         using var lector = comando.ExecuteReader();
         while (lector.Read())
         {
-            byte[] buffer = (byte[])lector["DatosImagen"];
+            byte[] buffer = (byte[])lector["datosImagen"];
             imagenes.Add(buffer);
         }
 

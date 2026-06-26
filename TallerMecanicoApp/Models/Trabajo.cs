@@ -2,7 +2,8 @@ namespace TallerMecanicoApp.Models;
 
 public class Trabajo
 {
-    public int Id { get; set; }
+    public int idTrabajo { get; set; }
+    public int idVehiculo { get; set; } // Nueva FK que conecta con Vehiculos.Id //borrar si falla
     public string Placa { get; set; } = string.Empty;
     public string Mecanico { get; set; } = string.Empty;
     public string Descripcion { get; set; } = string.Empty;

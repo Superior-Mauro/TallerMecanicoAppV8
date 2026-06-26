@@ -30,6 +30,7 @@ public static class TallerDbInitializer
         EjecutarScript(conexion, ScriptTablaHistorial);
         EjecutarScript(conexion, ScriptTriggerFinalizados);
         EjecutarScript(conexion, ScriptTablaImagenes);
+
     }
 
     private static void CrearBaseSiNoExiste(string cadenaMaster, string nombreBase)
@@ -83,7 +84,7 @@ public static class TallerDbInitializer
         BEGIN
             CREATE TABLE dbo.Vehiculos
             (
-                Id            INT IDENTITY(1, 1) NOT NULL CONSTRAINT PK_Vehiculos PRIMARY KEY,
+                idVehiculo    INT IDENTITY(1, 1) NOT NULL CONSTRAINT PK_Vehiculos PRIMARY KEY,
                 Placa         NVARCHAR(15)       NOT NULL,
                 Cliente       NVARCHAR(120)      NOT NULL,
                 Telefono      NVARCHAR(20)       NOT NULL CONSTRAINT DF_Vehiculos_Telefono DEFAULT (N''),
@@ -115,7 +116,8 @@ public static class TallerDbInitializer
         BEGIN
             CREATE TABLE dbo.Trabajos
             (
-                Id                    INT IDENTITY(1, 1) NOT NULL CONSTRAINT PK_Trabajos PRIMARY KEY,
+                idTrabajo             INT IDENTITY(1, 1) NOT NULL CONSTRAINT PK_Trabajos PRIMARY KEY,
+                idVehiculo            INT                NOT NULL,
                 Placa                 NVARCHAR(15)       NOT NULL,
                 Mecanico              NVARCHAR(120)      NOT NULL,
                 Descripcion           NVARCHAR(500)      NOT NULL,
@@ -130,8 +132,7 @@ public static class TallerDbInitializer
                 TiempoEstimadoMinutos INT                NOT NULL,
                 FechaRegistro         DATETIME2(0)       NOT NULL CONSTRAINT DF_Trabajos_FechaRegistro DEFAULT (SYSDATETIME()),
                 
-                CONSTRAINT FK_Trabajos_Vehiculos FOREIGN KEY (Placa) REFERENCES dbo.Vehiculos (Placa) ON DELETE CASCADE
-            );
+                CONSTRAINT FK_Trabajos_Vehiculos FOREIGN KEY (idVehiculo) REFERENCES dbo.Vehiculos (idVehiculo) ON DELETE CASCADE            );
         END
         """;
 
@@ -207,8 +208,8 @@ public static class TallerDbInitializer
                             i.Mecanico,
                             SYSDATETIME()
                         FROM inserted i
-                        INNER JOIN deleted d ON i.Id = d.Id
-                        INNER JOIN dbo.Vehiculos v ON i.Placa = v.Placa
+                        INNER JOIN deleted d ON i.idTrabajo = d.idTrabajo
+                        INNER JOIN dbo.Vehiculos v ON i.idVehiculo = v.idVehiculo
                         WHERE i.Estado = ''Finalizado'' 
                           AND (d.Estado IS NULL OR d.Estado <> ''Finalizado'');
                     END

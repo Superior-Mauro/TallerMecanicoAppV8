@@ -7,9 +7,9 @@ public class Vehiculo
     {
     }
 
-    public Vehiculo(int id, string placa, string cliente, string modelo, string dni, string telefono, DateTime fechaRegistro, string estado)
+    public Vehiculo(int idVeh, string placa, string cliente, string modelo, string dni, string telefono, DateTime fechaRegistro, string estado)
     {
-        Id = id;
+        idVehiculo = idVeh;
         Placa = placa;
         Cliente = cliente;
         Modelo = modelo;
@@ -19,7 +19,7 @@ public class Vehiculo
         Estado = string.IsNullOrWhiteSpace(estado) ? "Sin Trabajos" : estado; // Por si es nuevo
     }
 
-    public int Id { get; set; }
+    public int idVehiculo { get; set; }
     public string Placa { get; set; }
     public string Cliente { get; set; }
     public string Modelo { get; set; }

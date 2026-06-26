@@ -28,10 +28,13 @@ public partial class Form1 : Form
     {
         InitializeComponent();
 
+        colIdVehiculo.DataPropertyName = "idVehiculo";
+
         // Inicialización y mapeo de datos en la grilla sin autogenerar columnas basura
         _vehiculos = new BindingList<Vehiculo>();
         dgvVehiculos.AutoGenerateColumns = false;
         dgvVehiculos.DataSource = _vehiculos;
+
 
         // Estilizado visual de la grilla
         dgvVehiculos.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -56,6 +59,7 @@ public partial class Form1 : Form
         CargarVehiculos();
 
         // Controlamos los anchos proporcionales de tus columnas de datos reales
+        if (dgvVehiculos.Columns["colId"] != null) { dgvVehiculos.Columns["colId"].AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells; dgvVehiculos.Columns["colId"].DisplayIndex = 0; dgvVehiculos.Columns["colId"].DefaultCellStyle.Format = "D2"; }
         if (dgvVehiculos.Columns["colPlaca"] != null) dgvVehiculos.Columns["colPlaca"].FillWeight = 10;
         if (dgvVehiculos.Columns["colCliente"] != null) dgvVehiculos.Columns["colCliente"].FillWeight = 20;
         if (dgvVehiculos.Columns["colTelefono"] != null) dgvVehiculos.Columns["colTelefono"].FillWeight = 12;
@@ -361,7 +365,7 @@ public partial class Form1 : Form
                 {
                     dgvVehiculos.SelectionChanged -= dgvVehiculos_SelectionChanged;
 
-                    _repositorio.EliminarVehiculo(vehiculo.Placa);
+                    _repositorio.EliminarVehiculo(vehiculo.idVehiculo);
                     CargarVehiculos();
                     LimpiarCamposVehiculo();
 

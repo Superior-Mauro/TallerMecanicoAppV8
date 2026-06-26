@@ -26,6 +26,6 @@ static class Program
             return;
         }
 
-        Application.Run(new FrmLogin());
+        Application.Run(new Form1());
     }
 }

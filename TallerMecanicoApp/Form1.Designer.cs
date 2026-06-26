@@ -45,6 +45,7 @@ partial class Form1
         btnDelete = new Button();
         btnRegistroTrabajos = new Button();
         dgvVehiculos = new DataGridView();
+        colIdVehiculo = new DataGridViewTextBoxColumn();
         colPlaca = new DataGridViewTextBoxColumn();
         colCliente = new DataGridViewTextBoxColumn();
         colTelefono = new DataGridViewTextBoxColumn();
@@ -264,7 +265,7 @@ partial class Form1
         dgvVehiculos.AllowUserToDeleteRows = false;
         dgvVehiculos.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         dgvVehiculos.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-        dgvVehiculos.Columns.AddRange(new DataGridViewColumn[] { colPlaca, colCliente, colTelefono, colModelo, colDni, colEstadoVehiculo, colImagenes, colFechaRegistro });
+        dgvVehiculos.Columns.AddRange(new DataGridViewColumn[] { colIdVehiculo, colPlaca, colCliente, colTelefono, colModelo, colDni, colEstadoVehiculo, colImagenes, colFechaRegistro });
         dgvVehiculos.Location = new Point(24, 265);
         dgvVehiculos.MultiSelect = false;
         dgvVehiculos.Name = "dgvVehiculos";
@@ -273,6 +274,13 @@ partial class Form1
         dgvVehiculos.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         dgvVehiculos.Size = new Size(1085, 340);
         dgvVehiculos.TabIndex = 4;
+        // 
+        // colId
+        // 
+        colIdVehiculo.DataPropertyName = "Id";
+        colIdVehiculo.HeaderText = "Id";
+        colIdVehiculo.Name = "colId";
+        colIdVehiculo.ReadOnly = true;
         // 
         // colPlaca
         // 
@@ -382,6 +390,7 @@ partial class Form1
     private Button btnRegistroTrabajos;
     private DataGridView dgvVehiculos;
 
+    private DataGridViewTextBoxColumn colIdVehiculo;   // Borrar linea si falla
     private DataGridViewTextBoxColumn colPlaca;
     private DataGridViewTextBoxColumn colCliente;
     private DataGridViewTextBoxColumn colModelo;
