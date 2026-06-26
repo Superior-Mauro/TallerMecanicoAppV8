@@ -355,6 +355,32 @@ public sealed class TallerRepository
         comando.ExecuteNonQuery();
     }
 
+
+    public void GuardarImagenTrabajo(int idTrabajo, byte[] imagenBytes)
+    {
+        const string sql = "INSERT INTO dbo.TrabajosImagenes (idTrabajo, datosImagen) VALUES (@idTrabajo, @imagenBytes);";
+        using var conexion = AbrirConexion();
+        using var comando = new SqlCommand(sql, conexion);
+        comando.Parameters.AddWithValue("@idTrabajo", idTrabajo);
+        comando.Parameters.AddWithValue("@imagenBytes", imagenBytes);
+        comando.ExecuteNonQuery();
+    }
+
+    public IReadOnlyList<byte[]> ObtenerImagenesPorTrabajo(int idTrabajo)
+    {
+        const string sql = "SELECT datosImagen FROM dbo.TrabajosImagenes WHERE idTrabajo = @idTrabajo ORDER BY idImagen ASC;";
+        var imagenes = new List<byte[]>();
+        using var conexion = AbrirConexion();
+        using var comando = new SqlCommand(sql, conexion);
+        comando.Parameters.AddWithValue("@idTrabajo", idTrabajo);
+        using var lector = comando.ExecuteReader();
+        while (lector.Read())
+        {
+            imagenes.Add((byte[])lector["datosImagen"]);
+        }
+        return imagenes;
+    }
+
     public IReadOnlyList<byte[]> ObtenerImagenesPorPlaca(string placa)
     {
         const string sql =

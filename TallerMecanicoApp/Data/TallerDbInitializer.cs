@@ -30,6 +30,7 @@ public static class TallerDbInitializer
         EjecutarScript(conexion, ScriptTablaHistorial);
         EjecutarScript(conexion, ScriptTriggerFinalizados);
         EjecutarScript(conexion, ScriptTablaImagenes);
+        EjecutarScript(conexion, ScriptTrabajosImagenes);
 
     }
 
@@ -235,5 +236,22 @@ public static class TallerDbInitializer
             );
         END
         """;
+
+    private const string ScriptTrabajosImagenes =
+    """
+    IF OBJECT_ID(N'dbo.TrabajosImagenes', N'U') IS NULL
+    BEGIN
+        CREATE TABLE dbo.TrabajosImagenes
+        (
+            idImagen      INT IDENTITY(1, 1) NOT NULL CONSTRAINT PK_TrabajosImagenes PRIMARY KEY,
+            idTrabajo     INT                NOT NULL, -- FK hacia la orden específica
+            datosImagen   VARBINARY(MAX)     NOT NULL,
+            FechaRegistro DATETIME2(0)       NOT NULL CONSTRAINT DF_TrabajosImagenes_Fecha DEFAULT (SYSDATETIME()),
+            
+            -- Si eliminas la orden de trabajo, sus fotos se borran solas en cascada
+            CONSTRAINT FK_TrabajosImagenes_Trabajos FOREIGN KEY (idTrabajo) REFERENCES dbo.Trabajos (idTrabajo) ON DELETE CASCADE
+        );
+    END
+    """;
 
 }

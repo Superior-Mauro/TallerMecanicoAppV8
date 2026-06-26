@@ -107,12 +107,7 @@ public partial class Form2 : Form
             // ============================================================
             // LÓGICA DE FILTRADO INTELIGENTE (LINQ)
             // ============================================================
-            if (string.IsNullOrWhiteSpace(filtro))
-            {
-                // SI EL BUSCADOR ESTÁ VACÍO: Ocultamos los "Finalizado" para limpiar la grilla
-                listaTrabajos = listaTrabajos.Where(t => t.Estado != "Finalizado").ToList();
-            }
-            else
+            if (!string.IsNullOrWhiteSpace(filtro))
             {
                 // SI EL OPERADOR ESCRIBE ALGO: Se busca en TODO (incluyendo los "Finalizado")
                 filtro = filtro.Trim().ToUpper();
@@ -121,6 +116,7 @@ public partial class Form2 : Form
                     t.Mecanico.ToUpper().Contains(filtro)
                 ).ToList();
             }
+
 
             foreach (var trabajo in listaTrabajos)
             {
@@ -163,17 +159,16 @@ public partial class Form2 : Form
 
             cbPlaca.SelectedValue = trabajo.idVehiculo;
 
-            // ==========================================
-            // NUEVO: LOGICA PARA CARGAR LA MINIATURA 📷
-            // ==========================================
+            // ============================================================
+            // ACTUALIZADO: CARGAR MINIATURA POR idTrabajo 📷
+            // ============================================================
             try
             {
-                // Buscamos si el vehículo (por su placa) tiene imágenes guardadas
-                var imagenes = _repositorio.ObtenerImagenesPorPlaca(trabajo.Placa);
+                // Usamos el nuevo método del repositorio que busca por ID de orden
+                var imagenes = _repositorio.ObtenerImagenesPorTrabajo(trabajo.idTrabajo);
 
                 if (imagenes != null && imagenes.Count > 0)
                 {
-                    // Si existen fotos, tomamos la primera (índice 0) y la renderizamos
                     using (var ms = new System.IO.MemoryStream(imagenes[0]))
                     {
                         pbVehiculoTrabajo.Image = Image.FromStream(ms);
@@ -181,15 +176,10 @@ public partial class Form2 : Form
                 }
                 else
                 {
-                    // Si no tiene fotos, limpiamos el PictureBox para que no se quede la foto anterior
                     pbVehiculoTrabajo.Image = null;
                 }
             }
-            catch (Exception)
-            {
-                // En caso de que ocurra algún inconveniente menor, aseguramos que no rompa el programa
-                pbVehiculoTrabajo.Image = null;
-            }
+            catch { pbVehiculoTrabajo.Image = null; }
         }
     }
 
@@ -319,28 +309,40 @@ public partial class Form2 : Form
     // ============================================================
     private void btnAdjuntarFotos_Click(object sender, EventArgs e)
     {
-        // Validamos que haya un vehículo seleccionado en el ComboBox
-        if (cbPlaca.SelectedItem is not Vehiculo vehiculoSeleccionado)
+        // CAMBIO CRÍTICO: Obtenemos el trabajo directamente de la fila seleccionada en la grilla
+        if (dgvTrabajos.CurrentRow?.DataBoundItem is not Trabajo trabajoSeleccionado)
         {
-            MessageBox.Show("Por favor, selecciona un vehículo válido primero.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("Por favor, selecciona una orden de trabajo de la lista de abajo para adjuntarle fotos.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        // Seguridad: Si el trabajo es nuevo y no se ha guardado, el ID será 0
+        if (trabajoSeleccionado.idTrabajo <= 0)
+        {
+            MessageBox.Show("Debes registrar el trabajo primero antes de añadirle fotos.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
         using OpenFileDialog dialog = new OpenFileDialog();
         dialog.Filter = "Imágenes (*.jpg;*.jpeg;*.png)|*.jpg;*.jpeg;*.png";
-        dialog.Title = $"Adjuntar foto para el vehículo con Placa: {vehiculoSeleccionado.Placa}";
+        dialog.Title = $"Adjuntar foto a la Orden N° {trabajoSeleccionado.idTrabajo:D2}";
 
         if (dialog.ShowDialog() == DialogResult.OK)
         {
             try
             {
-                // Convertimos la imagen elegida a bytes
                 byte[] imagenBytes = System.IO.File.ReadAllBytes(dialog.FileName);
 
-                // Guardamos en la base de datos usando el repositorio existente
-                _repositorio.GuardarImagenVehiculo(vehiculoSeleccionado.Placa, imagenBytes);
+                // GUARDAMOS VINCULANDO AL idTrabajo
+                _repositorio.GuardarImagenTrabajo(trabajoSeleccionado.idTrabajo, imagenBytes);
 
-                MessageBox.Show("¡Foto de la orden guardada con éxito en SQL Server!", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Refrescamos la miniatura lateral de inmediato
+                using (var ms = new System.IO.MemoryStream(imagenBytes))
+                {
+                    pbVehiculoTrabajo.Image = Image.FromStream(ms);
+                }
+
+                MessageBox.Show($"¡Foto guardada con éxito en la Orden N° {trabajoSeleccionado.idTrabajo:D2}!", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -355,26 +357,79 @@ public partial class Form2 : Form
     // ============================================================
     private void dgvTrabajos_CellContentClick(object sender, DataGridViewCellEventArgs e)
     {
-        // Validamos que el clic no sea en las cabeceras y sea en la columna correcta
+        // 1. Validamos que el clic sea en la columna de la galería y no en el encabezado
         if (e.RowIndex >= 0 && dgvTrabajos.Columns[e.ColumnIndex].Name == "colGaleriaFotos")
         {
             if (dgvTrabajos.Rows[e.RowIndex].DataBoundItem is Trabajo trabajoSeleccionado)
             {
-                // Buscamos todas las fotos de esa placa en la BD
-                var listaImagenes = _repositorio.ObtenerImagenesPorPlaca(trabajoSeleccionado.Placa);
+                // 2. Recuperamos las fotos asociadas al idTrabajo específico (Relacional)
+                var listaFotos = _repositorio.ObtenerImagenesPorTrabajo(trabajoSeleccionado.idTrabajo);
 
-                if (listaImagenes.Count == 0)
+                if (listaFotos == null || listaFotos.Count == 0)
                 {
-                    MessageBox.Show("Este vehículo no cuenta con fotos registradas.", "Galería Vacía", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show($"La orden de trabajo N° {trabajoSeleccionado.idTrabajo:D2} no tiene fotos registradas.",
+                        "Galería Vacía", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
 
-                // Aquí abres tu formulario visor pasándole la lista de bytes, tal cual lo haces en el Form1.
-                // Ejemplo (descoméntalo y ajusta el nombre si tienes un formulario visor):
-                // var visor = new FrmVisorImagenes(listaImagenes);
-                // visor.ShowDialog();
+                // 3. CREACIÓN DE LA VENTANA DE GALERÍA DINÁMICA (CARRUSEL)
+                Form frmGaleria = new Form
+                {
+                    Text = $"Evidencia de Trabajo - Orden N° [{trabajoSeleccionado.idTrabajo:D2}]",
+                    Size = new Size(500, 450),
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    StartPosition = FormStartPosition.CenterParent,
+                    MaximizeBox = false,
+                    MinimizeBox = false,
+                    BackColor = Color.White
+                };
 
-                MessageBox.Show($"Se encontraron {listaImagenes.Count} fotos en la base de datos para la placa {trabajoSeleccionado.Placa}.", "Visor de Fotos", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                int indiceActual = 0;
+
+                // Contenedor de la imagen
+                PictureBox pbCarrusel = new PictureBox
+                {
+                    Location = new Point(20, 20),
+                    Size = new Size(440, 320),
+                    BorderStyle = BorderStyle.FixedSingle,
+                    SizeMode = PictureBoxSizeMode.Zoom
+                };
+
+                // Botones de navegación
+                Button btnAnterior = new Button { Text = "◀ Anterior", Location = new Point(80, 360), Size = new Size(100, 30) };
+                Button btnSiguiente = new Button { Text = "Siguiente ▶", Location = new Point(300, 360), Size = new Size(100, 30) };
+                Label lblContador = new Label
+                {
+                    Text = $"1 / {listaFotos.Count}",
+                    Location = new Point(200, 368),
+                    AutoSize = true,
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+                };
+
+                // Lógica para cambiar la imagen en el visor
+                Action ActualizarVisor = () =>
+                {
+                    // Liberamos memoria de la imagen anterior si existe
+                    pbCarrusel.Image?.Dispose();
+
+                    using var ms = new MemoryStream(listaFotos[indiceActual]);
+                    pbCarrusel.Image = Image.FromStream(ms);
+
+                    lblContador.Text = $"{indiceActual + 1} / {listaFotos.Count}";
+                    btnAnterior.Enabled = indiceActual > 0;
+                    btnSiguiente.Enabled = indiceActual < listaFotos.Count - 1;
+                };
+
+                // Eventos de los botones
+                btnAnterior.Click += (s, args) => { if (indiceActual > 0) { indiceActual--; ActualizarVisor(); } };
+                btnSiguiente.Click += (s, args) => { if (indiceActual < listaFotos.Count - 1) { indiceActual++; ActualizarVisor(); } };
+
+                // Iniciar carrusel
+                ActualizarVisor();
+
+                // Agregar controles y mostrar
+                frmGaleria.Controls.AddRange(new Control[] { pbCarrusel, btnAnterior, btnSiguiente, lblContador });
+                frmGaleria.ShowDialog(this);
             }
         }
     }
